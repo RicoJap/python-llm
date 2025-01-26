@@ -1,8 +1,10 @@
 # RUN THE SERVER: `uvicorn main:app --reload`
 
 # Import helper functions
-from utils import scrape_website, clean_json_string
+from utils import scrape_website, clean_json_string, click_element, click_dropdown_option
 
+# Playwright
+from playwright.sync_api import sync_playwright
 # FastAPI
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -235,6 +237,27 @@ def process_list_of_areas_and_stores(html):
     
     # Call Gemini API via LangChain
     response = llm.invoke(messages)
+    print("\nAI Analysis of areas and stores:")
+    # print(response.content)
+    return response.content
+
+# Get the list of stores' CSS selectors from a given HTML
+def process_list_of_stores(html, area_selector):
+    messages = [
+        SystemMessage(content="You are an AI assistant that analyzes stores from a given HTML"),
+        HumanMessage(content=f"""
+                    Give me the list of CSS selectors for all stores if available from the following HTML:\n\n{html}\n\n.
+                    The list of stores can be of div, span, input, select or option HTML elements.
+                    I want the selectors for each stores option.
+                    Please do not include random generated selectors and disabled elements.
+                    If the stores are not available, then just return an empty array with the {area_selector} as the key.
+                    Strictly generate the response in a JSON format with the following structure:
+                    {{"{area_selector}": ["store1_selector", "store2_selector", ...]}}
+                    """)
+    ]
+    
+    # Call Gemini API via LangChain
+    response = llm.invoke(messages)
     print("\nAI Analysis of Stores:")
     # print(response.content)
     return response.content
@@ -262,6 +285,56 @@ def get_selectors(url: str):
       except json.JSONDecodeError as e:
         print("Invalid JSON:", e)
         return {"css_selectors": "invalid JSON"}
+      
+
+# For scraping to get the dynamic content for stores from regions/prefectures
+def scrape_website_and_get_stores(url, store_selector):
+    with sync_playwright() as p:
+        # Start a browser session
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+        # page.set_default_timeout(60000)
+
+        try:
+          # Navigate to the webpage
+          page.goto(url, wait_until="networkidle")
+
+          # Click the elements to get the dynamic content (using miss-paris website example)
+          click_element(page, store_selector)
+          html = page.evaluate(
+                '''
+                () => {
+                    document.querySelectorAll('script, iframe, noscript, style').forEach((el) => {
+                      if (el.tagName.toLowerCase() === 'script') {
+                          // Remove script entirely
+                          el.remove();
+                      } else {
+                          // Replace other elements with their children
+                          const parent = el.parentNode;
+                          while (el.firstChild) {
+                              parent.insertBefore(el.firstChild, el);
+                          }
+                          parent.removeChild(el);
+                      }
+                  });
+                  
+                  // Minify the HTML
+                  return document.body.outerHTML
+                      .replace(/>\\s+</g, '><') // Remove spaces between tags
+                      .replace(/\\n|\\t|\\r/g, '') // Remove newlines, tabs, and carriage returns
+                      .replace(/\\s{2,}/g, ' ') // Replace multiple spaces with one
+                      .trim(); // Trim leading/trailing whitespace
+                  }
+            '''
+            )
+            
+          return html
+      
+        except Exception as e:
+            print("Error:", e)
+        
+        finally:
+            browser.close()
       
 
 # Ignore, trying to experiment with structured output
@@ -299,7 +372,7 @@ def get_calendar_rpa(html_file: str):
         return {"calendar_data": "invalid JSON"}
       
 
-# For calendar RPA availability
+# For list of areas_and_stores
 @app.get("/api/areas-and-stores/")
 def get_areas_and_stores(url: str):
   decoded_url = unquote(url)
@@ -312,7 +385,43 @@ def get_areas_and_stores(url: str):
     try:
       # Clean the JSON string and convert it to a Python dictionary to be returned as a response
       cleaned_json = json.loads(clean_json_string(css_selectors_json))
+
       return {"css_selectors": cleaned_json}
     except json.JSONDecodeError as e:
       print("Invalid JSON:", e)
       return {"css_selectors": "invalid JSON"}
+    
+
+# To get dynamic stores from list of areas, to be used if the stores are not available in the initial HTML and has to be dynamically loaded
+# Example usage: https://frey-a.jp/reservation/
+@app.get("/api/areas-and-stores-dynamic/")
+def get_areas_and_stores(url: str):
+  decoded_url = unquote(url)
+  # Get the scraped HTML content
+  html = scrape_website(decoded_url)
+  
+  # Step 2: Process with OpenAI API via LangChain
+  if html:
+    css_selectors_json = process_list_of_areas_and_stores(html)
+    try:
+      # Clean the JSON string and convert it to a Python dictionary
+      stores = []
+      cleaned_json = json.loads(clean_json_string(css_selectors_json))
+
+      # Extract the areas
+      areas = cleaned_json.get("areas", [])
+      for area in areas:
+        # Click on an area selector to get the stores
+        area_html = scrape_website_and_get_stores(decoded_url, area)
+        # Retrieve the stores' selectors
+        stores_selectors_json = process_list_of_stores(area_html, area)
+        cleaned_stores_selectors_json = json.loads(clean_json_string(stores_selectors_json))
+        print(cleaned_stores_selectors_json)
+        # Append the stores' selectors to the list
+        stores.append(cleaned_stores_selectors_json)
+
+      return {"css_selectors": stores}
+    except json.JSONDecodeError as e:
+      print("Invalid JSON:", e)
+      return {"css_selectors": "invalid JSON"}
+    

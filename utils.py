@@ -15,7 +15,7 @@ def scrape_website(url):
         # Start a browser session
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
-        page.set_default_timeout(60000)
+        # page.set_default_timeout(60000)
 
         try:
             # Navigate to the webpage
@@ -67,7 +67,7 @@ def click_element(page, css_selector):
       # Wait for the element to be visible and enabled for interaction
       page.wait_for_selector(css_selector, state="visible")
       # Click the element
-      page.click(css_selector)
+      page.click(css_selector, force=True)
       print(f"Clicked element with selector: {css_selector}")
   except Exception as e:
       print(f"Error clicking element with selector '{css_selector}': {e}")
