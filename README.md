@@ -36,6 +36,14 @@ uvicorn app_name:app --reload
 http://127.0.0.1:8000/api/selectors?url=<replace-this-with-url>
 ```
 
+```
+http://127.0.0.1:8000/api/areas-and-stores?url=<replace-this-with-url>
+```
+
+```
+http://127.0.0.1:8000/api/areas-and-stores-dynamic/?url=<replace-this-with-url>
+```
+
 
 ## Example
 * Run using postman:
@@ -44,7 +52,16 @@ http://127.0.0.1:8000/api/selectors?url=<replace-this-with-url>
 http://127.0.0.1:8000/api/selectors?url=https://www.diet-undeux.jp/contact-z/
 ```
 
-## How to use Calendar RPA endpoint
+```
+http://127.0.0.1:8000/api/areas-and-stores?url=https://www.diet-undeux.jp/contact-z/
+```
+
+```
+http://127.0.0.1:8000/api/areas-and-stores-dynamic?url=https://www.diet-undeux.jp/contact-z/
+```
+
+
+## How to use Calendar RPA endpoint (Ignore for now as we are not proceeding with calendar RPA)
 - Go to a website in the Google Spreadsheet
 - Inspect the website and get the element of the calendar
 - Right click and copy the element
