@@ -72,13 +72,11 @@ def process_with_llm(html):
     messages = [
         SystemMessage(content="You are an AI assistant that analyzes web form input elements."),
         HumanMessage(content=f"""
-                    Give me the list of the CSS selectors for these: {field_names} input elements including radio buttons from:\n\n{html}\n\n. Beware it can be a div and not just a basic input elements since it might not be semantically correct.
+                    Give me the list of the CSS selectors for all input elements including radio buttons from:\n\n{html}\n\n. Beware it can be a div and not just a basic input elements since it might not be semantically correct.
                     Do your best to get the closest element to the input field. 
                     Make sure the selectors are different from each other.
                     Not the labels, but the actual input elements.
-                    Generate that in a JSON format with the following keys: {[{"field_id_1": "field_id_1_value", "field_name_1": "field_name_1_value", "selector": "cssSelector1" }, {"field_id_2": "field_id_2_value", "field_name_2": "field_name_2_value", "selector": "cssSelector2" }, ...]}.
-                    The label will be the {field_names} under field_names. If there is none, then return empty JSON object.
-                    Also include the field_id in that object.
+                    Generate that in a JSON format with the following keys: {{"label1": "cssSelector1", "label2": "cssSelector2", ... }}.
                     Also include the type of the input element in the JSON object with a "type" field from:\n\n{types}\n\n.
                     Also include in there at the end of the JSON structure if there is a next button in the form and give me the CSS selector for that next button.
                     If there is none just add this 'nextButton': null as the value instead.
